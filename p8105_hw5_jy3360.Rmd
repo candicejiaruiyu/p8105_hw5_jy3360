@@ -147,7 +147,8 @@ First set the following design elements:
 
 - Fix n = 30
 - Fix $\sigma$ = 5
-- Set $\mu$ = 0. Generate 5000 datasets from the model: $x ∼ Normal [\mu, \sigma]$
+- Set $\mu$ = 0 
+- Generate 5000 datasets from the model: $x ∼ normal [\mu, \sigma]$
 - For each dataset, save $\hat{\mu}$ and the p-value arising from a test of H: $\mu$ = 0 using $\alpha$ = 0.05
 
 Hint: to obtain the estimate and p-value, use broom::tidy to clean the output of t.test.
@@ -163,27 +164,23 @@ alpha <- 0.05
 # define the simulation function
 simulate_t_test <- function(mu, n, sigma) {
   sample <- rnorm(n, mean = mu, sd = sigma)
-  test_result <- t.test(sample, mu = mu)
-  tidy_result <- broom::tidy(test_result)
-  return(tidy_result[c("estimate", "p.value")])
+  test_result <- t.test(sample, mu = 0, conf.level = 0.95)
+  tidy_result <- broom::tidy(test_result) %>%
+    rename(mu_hat = estimate, p_value = p.value)
+  return(tidy_result[c("mu_hat", "p_value")])
 }
 
-# Run the simulation 5000 times for mu = 0
+# run the simulation 5000 times for mu = 0
 simulation_results <- map_dfr(1:n_simulations, ~simulate_t_test(mu, n, sigma))
 
-# Review the structure of the first few results
+# review the first few results
 head(simulation_results)
 
 ```
 
 
 
-Repeat the above for $\mu$ = {1,2,3,4,5,6}, and complete the following:
-
-- Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of $\mu$ on the x axis. Describe the association between effect size and power.
-- Make a plot showing the average estimate of $\hat{\mu}$ on the y axis and the true value of $\mu$ on the x axis. 
-- Make a second plot (or overlay on the first) the average estimate of $\hat{\mu}$ only in samples for which the null was rejected on the y axis and the true value of $\mu$ on the x axis. 
-- Is the sample average of $\hat{\mu}$ across tests for which the null is rejected approximately equal to the true value of $\mu$? Why or why not?
+Repeat the above for $\mu$ = {1,2,3,4,5,6}, and complete the following: Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of $\mu$ on the x axis. Describe the association between effect size and power.
 
 ```{r}
 # create a list with 6 different sample size 
@@ -210,31 +207,65 @@ results %>%
 power_results <- results %>%
   group_by(mu) %>%
   summarise(
-    power = mean(p.value < alpha),
-    mean_estimate = mean(estimate),
-    mean_estimate_rejected = mean(estimate[p.value < alpha])
+    power = mean(p_value < alpha),
+    mean_mu_hat = mean(mu_hat),
+    mean_mu_rejected = mean(mu_hat[p_value < alpha])
   ) %>%
   ungroup()
 
 
 # plotting
 power_results %>%
-  ggplot(aes(x = mu, y = power)) +
-  geom_point() +
-  geom_line() +
-  theme_minimal() +
-  labs(title = "Power vs. True Value of µ", x = "True Value of µ", y = "Power")
+  ggplot(aes(x = mu, y = power, group = 1)) +
+  geom_point(color = "steelblue") +
+  geom_line(color = "steelblue") +
+  labs(title = "Power vs. True Value of µ", 
+       x = "True Value of µ", 
+       y = "Power")
 
+```
+
+- The plot shows that as the true value of $\mu$ increases, the power of the test also increases, indicating that larger effect sizes lead to higher power. 
+- However, the power plateaus after a certain point, suggesting that there is a maximum level beyond which increases in the effect size do not result in significant gains in power.
+
+
+Make a plot showing the average estimate of $\hat{\mu}$ on the y axis and the true value of $\mu$ on the x axis. 
+
+```{r}
 power_results %>%
-  ggplot(aes(x = mu)) +
-  geom_point(aes(y = mean_estimate), color = "blue") +
-  geom_line(aes(y = mean_estimate), color = "blue") +
-  geom_point(aes(y = mean_estimate_rejected), color = "red") +
-  geom_line(aes(y = mean_estimate_rejected), color = "red") +
-  theme_minimal() +
-  labs(title = "Mean Estimate of µ vs. True Value of µ", x = "True Value of µ", y = "Mean Estimate of µ") +
-  scale_color_manual("", labels = c("All Tests", "Rejected Tests"), values = c("blue", "red"))
+  ggplot(aes(x = mu, y = mean_mu_hat, group = 1)) +
+  geom_point(color = "darkred") +
+  geom_line(color = "darkred") +
+  labs(title = "Average Estimate of µ_hat vs. True Value of µ", 
+       x = "True Value of µ", 
+       y = "Average Estimate of µ_ha")
 
 ```
 
 
+Make a second plot (or overlay on the first) the average estimate of $\hat{\mu}$ only in samples for which the null was rejected on the y axis and the true value of $\mu$ on the x axis. 
+
+```{r}
+power_results %>%
+  ggplot(aes(x = mu)) +
+  geom_point(aes(y = mean_mu_hat, group = 1, color = "All Tests")) +
+  geom_line(aes(y = mean_mu_hat, group = 1, color = "All Tests")) +
+  geom_point(aes(y = mean_mu_rejected, group = 1, color = "Rejected Tests")) +
+  geom_line(aes(y = mean_mu_rejected, group = 1, color = "Rejected Tests"))  +
+  scale_color_manual(labels = c("All Tests", "Rejected Tests"), 
+                     values = c("steelblue", "darkred")) +
+  labs(title = "Mean Estimate of µ_hat vs. True Value of µ", 
+       x = "True Value of µ", 
+       y = "Mean Estimate of µ_hat") +
+  theme(legend.title = element_blank())
+
+
+```
+
+
+Is the sample average of $\hat{\mu}$ across tests for which the null is rejected approximately equal to the true value of $\mu$? Why or why not?
+
+- The plot indicates that the sample average of \(\hat{\mu}\) for rejected tests is consistently higher than the true value of \(\mu\), especially for small value of the effect size. 
+- This suggests that when the null hypothesis is rejected, the estimate of \(\mu\) is biased upwards. 
+- This could be due to the phenomenon of 'regression to the mean' or a selection bias, where only larger estimates lead to the null being rejected. 
+- It is not approximately equal, indicating an overestimation of the true effect when the null is rejected.
