@@ -30,8 +30,11 @@ Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) a
 ```{r}
 # load the data
 homicide_data <- read_csv("homicide-data.csv")
+```
 
+The raw data includes `r nrow(homicide_data)` observations and `r length(names(homicide_data))` variables. 
 
+```{r}
 # create city_state variable and summarize within cities
 homicides_summary <- 
   homicide_data %>%
@@ -41,7 +44,9 @@ homicides_summary <-
     total_homicides = n(),
     total_unsolved_homicides = sum(disposition %in% c("Closed without arrest", 
                                                       "Open/No arrest"))
-  )
+  ) %>%
+  filter(total_unsolved_homicides != 0)
+
 homicides_summary
 
 ```
@@ -60,10 +65,11 @@ baltimore_total <- pull(baltimore_data, total_homicides)
 
 baltimore_test <- prop.test(baltimore_unsolved, baltimore_total)
 
-broom::tidy(baltimore_test)
+broom::tidy(baltimore_test) %>%
+  select(estimate, conf.low, conf.high)
 ```
 
-Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+Now run `prop.test` for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 
 ```{r}
 # running prop.test for each city and creating a tidy dataframe
@@ -114,21 +120,25 @@ tidy_data <- files_df %>%
                names_prefix = "week_",
                names_to = "week", 
                values_to = "observation") %>%
-  mutate(week = as.numeric(week))
+  mutate(week = as.numeric(week),
+         subject_id = as.factor(subject_id))
 ```
 
 Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
 
 ```{r}
-ggplot(tidy_data, aes(x = week, y = observation, group = subject_id, color = arm)) +
+ggplot(tidy_data, aes(x = week, y = observation, group = subject_id, color = subject_id)) +
   geom_line() +
-  theme_minimal() +
-  labs(title = "Observations over Time by Subject", x = "Time (Weeks)", y = "Observation")
+  geom_point() +
+  labs(title = "Observations over Time by Subject", x = "Time (Weeks)", y = "Observation") +
+  facet_grid(~ arm)
 
 
 ```
 Comment: 
 
+- The observations of the experimental group are generally higher than that the control group. 
+- We can also see that the observations of experimental group has an increasing trend over time, but the observations of control group remain relatively stable over time. 
 
 
 # Problem 3
